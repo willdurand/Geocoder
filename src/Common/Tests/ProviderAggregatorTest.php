@@ -13,10 +13,10 @@ declare(strict_types=1);
 namespace Geocoder\Tests;
 
 use Geocoder\Collection;
-use Geocoder\Geocoder;
 use Geocoder\Model\Address;
 use Geocoder\Model\AddressCollection;
 use Geocoder\Query\GeocodeQuery;
+use Geocoder\Query\LookupQuery;
 use Geocoder\Query\ReverseQuery;
 use Geocoder\ProviderAggregator;
 use Geocoder\Provider\Provider;
@@ -157,6 +157,11 @@ class MockProvider implements Provider
     }
 
     public function reverseQuery(ReverseQuery $query): Collection
+    {
+        return $this->returnResult();
+    }
+
+    public function lookupQuery(LookupQuery $query): Collection
     {
         return $this->returnResult();
     }

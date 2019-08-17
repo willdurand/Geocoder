@@ -53,4 +53,15 @@ interface Geocoder extends Provider
      * @throws \Geocoder\Exception\Exception
      */
     public function reverse(float $latitude, float $longitude): Collection;
+
+    /**
+     * Lookup a location by it's provider-specific id.
+     *
+     * @param mixed $id
+     *
+     * @return Collection
+     *
+     * @throws \Geocoder\Exception\Exception
+     */
+    public function lookup($id): Collection;
 }

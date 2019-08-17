@@ -16,6 +16,7 @@ use Geocoder\Collection;
 use Geocoder\Http\Provider\AbstractHttpProvider;
 use Geocoder\Model\AddressCollection;
 use Geocoder\Query\GeocodeQuery;
+use Geocoder\Query\LookupQuery;
 use Geocoder\Query\ReverseQuery;
 use Http\Client\HttpClient;
 use Http\Mock\Client;
@@ -44,6 +45,11 @@ class DummyProvider extends AbstractHttpProvider
     }
 
     public function reverseQuery(ReverseQuery $query): Collection
+    {
+        return new AddressCollection([]);
+    }
+
+    public function lookupQuery(LookupQuery $query): Collection
     {
         return new AddressCollection([]);
     }
