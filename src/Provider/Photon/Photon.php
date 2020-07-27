@@ -50,7 +50,7 @@ final class Photon extends AbstractHttpProvider implements Provider
      * @param HttpClient $client  an HTTP client
      * @param string     $rootUrl Root URL of the photon server
      */
-    public function __construct(HttpClient $client, $rootUrl)
+    public function __construct(HttpClient $client, string $rootUrl)
     {
         parent::__construct($client);
 

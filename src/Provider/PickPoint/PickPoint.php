@@ -160,7 +160,7 @@ final class PickPoint extends AbstractHttpProvider implements Provider
      *
      * @return string
      */
-    private function executeQuery(string $url, string $locale = null): string
+    private function executeQuery(string $url, ?string $locale = null): string
     {
         if (null !== $locale) {
             $url = sprintf('%s&accept-language=%s', $url, $locale);

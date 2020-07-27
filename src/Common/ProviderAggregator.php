@@ -49,7 +49,7 @@ class ProviderAggregator implements Geocoder
      * @param callable|null $decider
      * @param int           $limit
      */
-    public function __construct(callable $decider = null, int $limit = Geocoder::DEFAULT_RESULT_LIMIT)
+    public function __construct(?callable $decider = null, int $limit = Geocoder::DEFAULT_RESULT_LIMIT)
     {
         $this->limit = $limit;
         $this->decider = $decider ?? __CLASS__.'::getProvider';

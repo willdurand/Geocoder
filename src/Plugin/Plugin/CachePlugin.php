@@ -47,7 +47,7 @@ class CachePlugin implements Plugin
      * @param int|null       $lifetime
      * @param int|null       $precision
      */
-    public function __construct(CacheInterface $cache, int $lifetime = null, int $precision = null)
+    public function __construct(CacheInterface $cache, ?int $lifetime = null, ?int $precision = null)
     {
         $this->cache = $cache;
         $this->lifetime = $lifetime;

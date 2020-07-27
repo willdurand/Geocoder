@@ -45,7 +45,7 @@ class ProviderCache implements Provider
      * @param CacheInterface $cache
      * @param int            $lifetime
      */
-    final public function __construct(Provider $realProvider, CacheInterface $cache, int $lifetime = null)
+    final public function __construct(Provider $realProvider, CacheInterface $cache, ?int $lifetime = null)
     {
         $this->realProvider = $realProvider;
         $this->cache = $cache;

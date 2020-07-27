@@ -110,7 +110,7 @@ final class Yandex extends AbstractHttpProvider implements Provider
      *
      * @return AddressCollection
      */
-    private function executeQuery(string $url, int $limit, string $locale = null): AddressCollection
+    private function executeQuery(string $url, int $limit, ?string $locale = null): AddressCollection
     {
         if (null !== $locale) {
             $url = sprintf('%s&lang=%s', $url, str_replace('_', '-', $locale));
@@ -124,7 +124,8 @@ final class Yandex extends AbstractHttpProvider implements Provider
         $content = $this->getUrlContents($url);
         $json = json_decode($content, true);
 
-        if (empty($json) || isset($json['error']) ||
+        if (
+            empty($json) || isset($json['error']) ||
             (isset($json['response']) && '0' === $json['response']['GeoObjectCollection']['metaDataProperty']['GeocoderResponseMetaData']['found'])
         ) {
             return new AddressCollection([]);
