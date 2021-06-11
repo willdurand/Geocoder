@@ -13,19 +13,64 @@ declare(strict_types=1);
 namespace Geocoder\Provider\Pelias;
 
 use Geocoder\Collection;
+use Geocoder\Exception\Exception;
 use Geocoder\Exception\InvalidCredentials;
+use Geocoder\Exception\LogicException;
 use Geocoder\Exception\QuotaExceeded;
 use Geocoder\Exception\UnsupportedOperation;
-use Geocoder\Model\Address;
+use Geocoder\Http\Provider\AbstractHttpProvider;
 use Geocoder\Model\AddressCollection;
+use Geocoder\Provider\Provider;
 use Geocoder\Query\GeocodeQuery;
 use Geocoder\Query\ReverseQuery;
-use Geocoder\Http\Provider\AbstractHttpProvider;
-use Geocoder\Provider\Provider;
 use Http\Client\HttpClient;
+use JsonException;
+use function array_diff;
+use function array_merge;
+use function count;
+use function filter_var;
+use function http_build_query;
+use function implode;
+use function is_array;
+use function json_decode;
+use function rtrim;
+use function sprintf;
+use function strtoupper;
 
 class Pelias extends AbstractHttpProvider implements Provider
 {
+    public const LAYER_VENUE = 'venue';
+    public const LAYER_ADDRESS = 'address';
+    public const LAYER_STREET = 'street';
+    public const LAYER_NEIGHBOURHOOD = 'neighbourhood';
+    public const LAYER_BOROUGH = 'borough';
+    public const LAYER_LOCAL_ADMIN = 'localadmin';
+    public const LAYER_LOCALITY = 'locality';
+    public const LAYER_COUNTY = 'county';
+    public const LAYER_MACRO_COUNTY = 'macrocounty';
+    public const LAYER_REGION = 'region';
+    public const LAYER_MACRO_REGION = 'macroregion';
+    public const LAYER_COUNTRY = 'country';
+    public const LAYER_POSTALCODE = 'postalcode';
+    public const LAYER_COARSE = 'coarse';   // All layers, except venue and address
+
+    public const VALID_LAYERS = [
+        self::LAYER_VENUE,
+        self::LAYER_ADDRESS,
+        self::LAYER_STREET,
+        self::LAYER_NEIGHBOURHOOD,
+        self::LAYER_BOROUGH,
+        self::LAYER_LOCAL_ADMIN,
+        self::LAYER_LOCALITY,
+        self::LAYER_COUNTY,
+        self::LAYER_MACRO_COUNTY,
+        self::LAYER_REGION,
+        self::LAYER_MACRO_REGION,
+        self::LAYER_COUNTRY,
+        self::LAYER_POSTALCODE,
+        self::LAYER_COARSE,
+    ];
+
     /**
      * @var string
      */
@@ -55,7 +100,7 @@ class Pelias extends AbstractHttpProvider implements Provider
      *
      * @return string
      *
-     * @throws \Geocoder\Exception\Exception
+     * @throws Exception
      */
     protected function getGeocodeQueryUrl(GeocodeQuery $query, array $query_data = []): string
     {
@@ -66,10 +111,12 @@ class Pelias extends AbstractHttpProvider implements Provider
             throw new UnsupportedOperation(sprintf('The %s provider does not support IP addresses, only street addresses.', $this->getName()));
         }
 
-        $data = [
+        $data = array_filter([
             'text' => $address,
             'size' => $query->getLimit(),
-        ];
+            'lang' => $query->getLocale() ?? 'en',
+            'layers' => $this->processLayers($query),
+        ]);
 
         return sprintf('%s/search?%s', $this->root, http_build_query(array_merge($data, $query_data)));
     }
@@ -88,7 +135,7 @@ class Pelias extends AbstractHttpProvider implements Provider
      *
      * @return string
      *
-     * @throws \Geocoder\Exception\Exception
+     * @throws Exception
      */
     protected function getReverseQueryUrl(ReverseQuery $query, array $query_data = []): string
     {
@@ -100,6 +147,7 @@ class Pelias extends AbstractHttpProvider implements Provider
             'point.lat' => $latitude,
             'point.lon' => $longitude,
             'size' => $query->getLimit(),
+            'lang' => $query->getLocale() ?? 'en',
         ];
 
         return sprintf('%s/reverse?%s', $this->root, http_build_query(array_merge($data, $query_data)));
@@ -125,11 +173,13 @@ class Pelias extends AbstractHttpProvider implements Provider
      * @param $url
      *
      * @return Collection
+     *
+     * @throws JsonException
      */
     protected function executeQuery(string $url): AddressCollection
     {
         $content = $this->getUrlContents($url);
-        $json = json_decode($content, true);
+        $json = json_decode($content, true, 512, JSON_THROW_ON_ERROR);
 
         if (isset($json['meta'])) {
             switch ($json['meta']['status_code']) {
@@ -179,24 +229,31 @@ class Pelias extends AbstractHttpProvider implements Provider
             $adminLevels = [];
             foreach (['region', 'county', 'locality', 'macroregion', 'country'] as $i => $component) {
                 if (isset($props[$component])) {
-                    $adminLevels[] = ['name' => $props[$component], 'level' => $i + 1];
+                    $adminLevels[] = [
+                        'name' => $props[$component],
+                        'level' => $i + 1,
+                        'code' => $props[sprintf('%s_a', $component)] ?? null,
+                    ];
                 }
             }
 
-            $results[] = Address::createFromArray([
-                'providedBy' => $this->getName(),
-                'latitude' => $location['geometry']['coordinates'][1],
-                'longitude' => $location['geometry']['coordinates'][0],
-                'bounds' => $bounds,
-                'streetNumber' => isset($props['housenumber']) ? $props['housenumber'] : null,
-                'streetName' => isset($props['street']) ? $props['street'] : null,
-                'subLocality' => isset($props['neighbourhood']) ? $props['neighbourhood'] : null,
-                'locality' => isset($props['locality']) ? $props['locality'] : null,
-                'postalCode' => isset($props['postalcode']) ? $props['postalcode'] : null,
-                'adminLevels' => $adminLevels,
-                'country' => isset($props['country']) ? $props['country'] : null,
-                'countryCode' => isset($props['country_a']) ? strtoupper($props['country_a']) : null,
-            ]);
+            $results[] = PeliasAddress
+                ::createFromArray([
+                    'providedBy' => $this->getName(),
+                    'latitude' => $location['geometry']['coordinates'][1],
+                    'longitude' => $location['geometry']['coordinates'][0],
+                    'bounds' => $bounds,
+                    'streetNumber' => $props['housenumber'] ?? null,
+                    'streetName' => $props['street'] ?? null,
+                    'subLocality' => $props['neighbourhood'] ?? null,
+                    'locality' => $props['locality'] ?? null,
+                    'postalCode' => $props['postalcode'] ?? null,
+                    'adminLevels' => $adminLevels,
+                    'country' => $props['country'] ?? null,
+                    'countryCode' => isset($props['country_a']) ? strtoupper($props['country_a']) : null,
+                ])
+                ->withGID($props['gid'] ?? null)
+                ->withSource($props['source'] ?? null);
         }
 
         return new AddressCollection($results);
@@ -253,5 +310,30 @@ class Pelias extends AbstractHttpProvider implements Provider
         }
 
         return null;
+    }
+
+    /**
+     * @param GeocodeQuery $query
+     *
+     * @return string|null
+     *
+     * @throws LogicException
+     */
+    protected function processLayers(GeocodeQuery $query): ?string
+    {
+        $layers = $query->getData('layers');
+        if (empty($layers)) {
+            return null;
+        }
+        if (!is_array($layers)) {
+            throw new LogicException('Layers must be an array');
+        }
+
+        $invalidLayers = array_diff($layers, self::VALID_LAYERS);
+        if (!empty($invalidLayers)) {
+            throw new LogicException('Invalid layers found. Valid layers are: '.implode(', ', self::VALID_LAYERS));
+        }
+
+        return implode(',', $layers);
     }
 }
